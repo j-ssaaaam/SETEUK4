@@ -18,6 +18,12 @@ npm run build
 
 This starter does not use `wrangler.jsonc`.
 
+## Supabase 연결
+
+1. Supabase SQL Editor에서 `supabase/schema.sql`을 실행합니다.
+2. `.env.local`에 `.env.example`의 두 값을 입력합니다.
+3. `NEXT_PUBLIC_SUPABASE_URL`과 `NEXT_PUBLIC_SUPABASE_ANON_KEY`가 설정되면 저장 내역이 Supabase `setukit_drafts` 테이블을 사용합니다. 키가 없거나 연결에 실패하면 브라우저 로컬 저장으로 자동 전환됩니다.
+
 ## Included Shape
 
 - edit site code under `app/`

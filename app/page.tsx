@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { isSupabaseConfigured, loadRemoteDrafts, saveRemoteDraft } from "./lib/supabase";
 
 type Subject = "국어" | "수학" | "과학" | "영어" | "사회";
 
@@ -65,12 +66,30 @@ export default function Home() {
   const [activeSubject, setActiveSubject] = useState<Subject>("과학");
   const [results, setResults] = useState<Result[]>(demoResults);
   const [saved, setSaved] = useState<SavedDraft[]>([]);
+  const [connection, setConnection] = useState<"supabase" | "local">(isSupabaseConfigured ? "supabase" : "local");
+  const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [toast, setToast] = useState("");
 
   useEffect(() => {
     const stored = window.localStorage.getItem("setukit-drafts");
     if (stored) setSaved(JSON.parse(stored));
+
+    if (isSupabaseConfigured) {
+      loadRemoteDrafts()
+        .then((rows) => {
+          setSaved(rows.map((row) => ({
+            id: row.id,
+            student: row.student_name,
+            grade: row.grade,
+            semester: row.semester,
+            createdAt: new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(row.created_at)),
+            results: row.results as Result[],
+          })));
+          setConnection("supabase");
+        })
+        .catch(() => setConnection("local"));
+    }
   }, []);
 
   const activeResult = useMemo(
@@ -106,7 +125,7 @@ export default function Home() {
     }, 1950);
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     const item: SavedDraft = {
       id: crypto.randomUUID(),
       student,
@@ -118,7 +137,26 @@ export default function Home() {
     const next = [item, ...saved];
     setSaved(next);
     window.localStorage.setItem("setukit-drafts", JSON.stringify(next));
-    setToast("현재 결과를 저장했습니다.");
+    setSaving(true);
+    if (isSupabaseConfigured) {
+      try {
+        await saveRemoteDraft({
+          id: item.id,
+          student_name: item.student,
+          grade: item.grade,
+          semester: item.semester,
+          results: item.results,
+        });
+        setConnection("supabase");
+        setToast("Supabase에 현재 결과를 저장했습니다.");
+      } catch {
+        setConnection("local");
+        setToast("Supabase 연결에 실패해 브라우저에 저장했습니다.");
+      }
+    } else {
+      setToast("현재 결과를 브라우저에 저장했습니다.");
+    }
+    setSaving(false);
     window.setTimeout(() => setToast(""), 2600);
   };
 
@@ -142,7 +180,7 @@ export default function Home() {
           <span>세특<span className="brand-accent">랩</span></span>
         </a>
         <div className="topbar-actions">
-          <span className="status-dot"><span /> Supabase 연동 준비됨</span>
+          <span className="status-dot"><span /> {connection === "supabase" ? "Supabase 연결됨" : "로컬 저장 모드"}</span>
           <button className="history-button" onClick={() => setShowHistory(true)}><span>↺</span> 저장 내역</button>
           <div className="avatar">교</div>
         </div>
@@ -182,7 +220,7 @@ export default function Home() {
           <section className="card result-card">
             <div className="result-heading"><div><p className="section-kicker">STEP 03</p><h2>과목별 세특 초안</h2></div><span className="result-count">{results.length}개 과목</span></div>
             <div className="result-tabs">{(selectedSubjects.length ? selectedSubjects : subjects.slice(0, 3)).map((subject) => <button key={subject} className={activeSubject === subject ? "result-tab active" : "result-tab"} onClick={() => setActiveSubject(subject)}>{subject}</button>)}</div>
-            {activeResult ? <div className="draft-body"><div className="draft-meta"><span className="subject-label">{activeResult.subject}</span><span className="draft-ready">{generated ? "검토 완료" : "예시 초안"} <span>✓</span></span></div><h3>{activeResult.title}</h3><p className="draft-text">{activeResult.draft}</p><div className="tag-row">{activeResult.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><div className="draft-actions"><button className="copy-button" onClick={() => navigator.clipboard?.writeText(activeResult.draft).then(() => { setToast("문장을 클립보드에 복사했습니다."); window.setTimeout(() => setToast(""), 2200); })}>▣ 문장 복사</button><button className="save-button" onClick={saveDraft}>저장하기 <span>→</span></button></div></div> : <div className="empty-state">과목을 선택하고 초안을 생성해보세요.</div>}
+            {activeResult ? <div className="draft-body"><div className="draft-meta"><span className="subject-label">{activeResult.subject}</span><span className="draft-ready">{generated ? "검토 완료" : "예시 초안"} <span>✓</span></span></div><h3>{activeResult.title}</h3><p className="draft-text">{activeResult.draft}</p><div className="tag-row">{activeResult.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><div className="draft-actions"><button className="copy-button" onClick={() => navigator.clipboard?.writeText(activeResult.draft).then(() => { setToast("문장을 클립보드에 복사했습니다."); window.setTimeout(() => setToast(""), 2200); })}>▣ 문장 복사</button><button className="save-button" onClick={saveDraft} disabled={saving}>{saving ? "저장 중..." : "저장하기"} <span>→</span></button></div></div> : <div className="empty-state">과목을 선택하고 초안을 생성해보세요.</div>}
             <div className="result-footnote"><span>ⓘ</span> AI가 만든 초안은 선생님의 검토와 수정을 거쳐 최종 기록으로 활용해주세요.</div>
           </section>
         </section>
