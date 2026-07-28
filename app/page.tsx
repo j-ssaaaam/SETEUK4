@@ -142,7 +142,7 @@ export default function Home() {
           <span>세특<span className="brand-accent">랩</span></span>
         </a>
         <div className="topbar-actions">
-          <span className="status-dot"><span /> Supabase 연결됨</span>
+          <span className="status-dot"><span /> Supabase 연동 준비됨</span>
           <button className="history-button" onClick={() => setShowHistory(true)}><span>↺</span> 저장 내역</button>
           <div className="avatar">교</div>
         </div>
